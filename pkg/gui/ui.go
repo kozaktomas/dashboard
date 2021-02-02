@@ -56,35 +56,20 @@ func (g *gui) Run() {
 	g.height = y
 
 	mrs, err := g.gitlab.GetMyMergeRequests()
-	if err != nil {
-		g.flash = err.Error()
-	}
+	g.processError(err)
 	var myMrItems []tabItem
 	for _, mr := range mrs {
+		project, err := g.gitlab.GetProject(mr.ProjectID)
+		g.processError(err)
 		myMrItems = append(myMrItems, tabItem{
-			text: formatGitlabMergeRequestTitle(mr),
-			url:  mr.Url,
-			copy: mr.BranchName,
+			text: formatGitlabMergeRequestTitle(project, mr),
+			url:  mr.WebURL,
+			copy: mr.SourceBranch,
 		})
 	}
 	mrTab := createTab("My Merge Requests", 0, myMrItems)
 
-	mrs, err = g.gitlab.GetReviews()
-	if err != nil {
-		g.flash = err.Error()
-	}
-	var reviews []tabItem
-	for _, mr := range mrs {
-		reviews = append(reviews, tabItem{
-			text: formatGitlabMergeRequestTitle(mr),
-			url:  mr.Url,
-			copy: mr.BranchName,
-		})
-	}
-	crTab := createTab("Code reviews", 1, reviews)
-
 	g.tabs = append(g.tabs, mrTab)
-	g.tabs = append(g.tabs, crTab)
 
 	g.render()
 
@@ -218,4 +203,10 @@ func (g *gui) RenderHelp(info string) {
 	}
 	p.SetRect(0, g.height-3, g.width-1, g.height)
 	ui.Render(p)
+}
+
+func (g *gui) processError(err error) {
+	if err != nil {
+		g.flash = err.Error()
+	}
 }

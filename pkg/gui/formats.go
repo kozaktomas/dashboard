@@ -1,22 +1,21 @@
 package gui
 
 import (
-	"github.com/kozaktomas/dashboard/pkg/gitlab"
+	"github.com/xanzy/go-gitlab"
 	"strconv"
 )
 
-func formatGitlabMergeRequestTitle(mr gitlab.MergeRequest) string {
-	icon := "🔀"
-	if mr.IsOpen() {
-		icon = "👷"
+func formatGitlabMergeRequestTitle(project *gitlab.Project, mr *gitlab.MergeRequest) string {
+	icon := "🔵"
+	if mr.State == "opened" {
+		icon = "\U0001F7E2"
 	}
 
-	if mr.IsClosed() {
-		icon = "🔒"
+	if mr.State == "Closed" {
+		icon = "🔴"
 	}
 	ret := icon + " "
-	ret += "[" + mr.ProjectName + "](fg:cyan)"
-	ret += "!" + strconv.Itoa(mr.Id)
+	ret += "[" + project.NameWithNamespace + "!" + strconv.Itoa(mr.IID) + "](fg:cyan)"
 	ret += " - " + mr.Title
 
 	return ret
