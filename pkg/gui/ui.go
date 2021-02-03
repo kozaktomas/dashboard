@@ -1,47 +1,42 @@
 package gui
 
 import (
-	"fmt"
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
-	"github.com/kozaktomas/dashboard/pkg/gitlab"
+	"github.com/kozaktomas/dashboard/pkg/integrations"
 	"github.com/kozaktomas/dashboard/pkg/utils"
 	"log"
 	"time"
 )
 
-const helpTimeout = 2 * time.Second
-const helpDefault = " 💡 [o / Enter] - open in browser   [Tab / 1 / 2] - switch tab]   [b] - copy branch name"
-
-type tabItem struct {
-	text string
-	url  string
-	copy string
-}
-
-type tab struct {
-	title  string
-	number int
-	label  string
-	items  []tabItem
-	window *widgets.List
-}
+const helpTimeout = 5 * time.Second
+const helpDefault = "💡 [o / Enter] - open in browser   [Tab / 1 / 2] - switch tab]   [b] - copy branch name"
 
 type gui struct {
 	width  int
 	height int
-	tabs   []*tab
-	flash  string
-	gitlab *gitlab.Service
+	apps   []integrations.Integration
+
+	list   *widgets.List
+	detail *widgets.Paragraph
+	flash  *widgets.Paragraph
+
+	activeAppIndex int
+	activeListItem int
 }
 
-func New(g *gitlab.Service) *gui {
+func New(integrations []integrations.Integration) *gui {
 	return &gui{
 		width:  0,
 		height: 0,
-		flash:  "",
-		tabs:   []*tab{},
-		gitlab: g,
+		apps:   integrations,
+
+		list:   widgets.NewList(),
+		detail: widgets.NewParagraph(),
+		flash:  widgets.NewParagraph(),
+
+		activeAppIndex: 0,
+		activeListItem: 0,
 	}
 }
 
@@ -55,77 +50,70 @@ func (g *gui) Run() {
 	g.width = x
 	g.height = y
 
-	mrs, err := g.gitlab.GetMyMergeRequests()
-	g.processError(err)
-	var myMrItems []tabItem
-	for _, mr := range mrs {
-		project, err := g.gitlab.GetProject(mr.ProjectID)
-		g.processError(err)
-		myMrItems = append(myMrItems, tabItem{
-			text: formatGitlabMergeRequestTitle(project, mr),
-			url:  mr.WebURL,
-			copy: mr.SourceBranch,
-		})
-	}
-	mrTab := createTab("My Merge Requests", 0, myMrItems)
+	g.detail.SetRect(g.width/2+2, 0, g.width-2, g.height-1)
+	g.list.SetRect(0, 0, g.width/2, g.height-1)
+	g.flash.SetRect(0, g.height-1, g.width-1, g.height)
+	g.flash.Border = false
 
-	g.tabs = append(g.tabs, mrTab)
-
-	g.render()
-
-	g.tabs[0].window.TitleStyle.Bg = ui.ColorYellow // first tab is active
-	ui.Render(g.tabs[0].window)                     // rerender first tab
+	g.renderList()
 
 	g.controlLoop()
 }
 
-func createTab(title string, number int, items []tabItem) *tab {
-	return &tab{
-		title:  title,
-		number: number,
-		label:  fmt.Sprintf("%d", number+1),
-		items:  items,
+func (g *gui) renderList() {
+	app := g.apps[g.activeAppIndex]
+	items := app.GetItems()
+
+	var rows []string
+	for _, item := range items {
+		rows = append(rows, item.Text)
 	}
+
+	g.list.Title = app.GetName()
+
+	g.list.Rows = rows
+	g.list.TextStyle = ui.NewStyle(ui.ColorGreen)
+	g.list.WrapText = false
+
+	ui.Render(g.list)
+	g.renderDetail()
+	g.renderFlash("")
+}
+
+func (g *gui) renderDetail() {
+	item := g.apps[g.activeAppIndex].GetItems()[g.list.SelectedRow]
+	itemId := item.Id
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		if itemId != g.apps[g.activeAppIndex].GetItems()[g.list.SelectedRow].Id {
+			return // selected changed
+		}
+
+		detail := g.apps[g.activeAppIndex].GetDetail(item)
+		text := ""
+		for _, part := range detail.Parts {
+			text += " " + part.GetText()
+		}
+
+		g.detail.Text = text
+		ui.Render(g.detail)
+	}()
 }
 
 func (g *gui) controlLoop() {
 	uiEvents := ui.PollEvents()
-	active := 0
-
 	for {
 		e := <-uiEvents
 
 		if e.ID == "<Up>" || e.ID == "k" {
-			g.tabs[active].window.ScrollUp()
+			g.list.ScrollUp()
+			g.renderDetail()
 		}
 
 		if e.ID == "<Down>" || e.ID == "j" {
-			g.tabs[active].window.ScrollDown()
-		}
-
-		for _, tab := range g.tabs {
-			if e.ID == tab.label {
-				g.tabs[active].window.TitleStyle.Bg = ui.ColorBlack
-				ui.Render(g.tabs[active].window) // render old one
-				active = tab.number
-				g.tabs[active].window.TitleStyle.Bg = ui.ColorYellow
-				break
-			}
-		}
-
-		if e.ID == "<Tab>" {
-			g.tabs[active].window.TitleStyle.Bg = ui.ColorBlack
-			ui.Render(g.tabs[active].window) // render old one
-
-			c := len(g.tabs)
-			s := g.tabs[active].number
-			if s+1 < c {
-				active++
-			} else {
-				active = 0
-			}
-
-			g.tabs[active].window.TitleStyle.Bg = ui.ColorYellow
+			g.list.ScrollDown()
+			g.renderDetail()
 		}
 
 		if e.ID == "q" || e.ID == "<C-c>" {
@@ -133,80 +121,40 @@ func (g *gui) controlLoop() {
 		}
 
 		if e.ID == "<Enter>" || e.ID == "o" || e.ID == "O" {
-			selected := g.tabs[active].window.SelectedRow
-			url := g.tabs[active].items[selected].url
+			selected := g.list.SelectedRow
+			url := g.apps[g.activeAppIndex].GetItems()[selected].Url
 			utils.OpenBrowser(url)
 		}
 
 		if e.ID == "b" || e.ID == "B" {
-			selected := g.tabs[active].window.SelectedRow
-			branchName := g.tabs[active].items[selected].copy
-			utils.CopyToClipboard("git checkout " + branchName)
-			g.RenderHelp("📋 Copied! [ " + branchName + " ]")
+			selected := g.list.SelectedRow
+			cp := g.apps[g.activeAppIndex].GetItems()[selected].Copy
+			utils.CopyToClipboard(cp)
+			g.renderFlash("📋 Copied! [ " + cp + " ]")
 		}
 
-		if g.tabs[active] != nil {
-			ui.Render(g.tabs[active].window)
-		}
+		g.renderList()
 	}
 }
 
-func (g *gui) render() {
-	delta := 0
-	if g.flash != "" {
-		delta = g.renderFlash(delta)
-	}
-	g.renderTabs(delta)
-	g.RenderHelp("")
-}
-
-func (g *gui) renderFlash(delta int) int {
-	p := widgets.NewParagraph()
-	p.Text = "  " + g.flash
-	p.TextStyle.Fg = ui.ColorRed
-	p.SetRect(0, 0, g.width, 3+delta)
-	ui.Render(p)
-
-	return 3 + delta
-}
-
-func (g *gui) renderTabs(delta int) {
-	c := len(g.tabs)
-	for i, tab := range g.tabs {
-		l := widgets.NewList()
-		l.Title = fmt.Sprintf(" %s [%d] ", tab.title, tab.number+1)
-		var rows []string
-		for _, item := range tab.items {
-			rows = append(rows, item.text)
-		}
-		l.Rows = rows
-		l.TextStyle = ui.NewStyle(ui.ColorGreen)
-		l.WrapText = false
-		l.SetRect(i*g.width/c, 0+delta, (i+1)*g.width/c-1, g.height-3)
-		tab.window = l
-		ui.Render(l)
-	}
-}
-
-func (g *gui) RenderHelp(info string) {
-	p := widgets.NewParagraph()
-	if info == "" {
-		p.Text = helpDefault
+func (g *gui) renderFlash(msg string) {
+	if msg == "" {
+		g.flash.Text = helpDefault
 	} else {
-		p.Text = info
-		ui.Render(p)
+		g.flash.Text = msg
+		ui.Render(g.flash)
 		go func() {
 			time.Sleep(helpTimeout)
-			p.Text = helpDefault
-			ui.Render(p)
+			g.flash.Text = helpDefault
+			ui.Render(g.flash)
 		}()
 	}
-	p.SetRect(0, g.height-3, g.width-1, g.height)
-	ui.Render(p)
+
+	ui.Render(g.flash)
 }
 
 func (g *gui) processError(err error) {
 	if err != nil {
-		g.flash = err.Error()
+		g.renderFlash(err.Error())
 	}
 }

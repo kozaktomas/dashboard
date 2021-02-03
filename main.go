@@ -3,29 +3,22 @@ package main
 import (
 	"fmt"
 	"github.com/joho/godotenv"
-	"github.com/kozaktomas/dashboard/pkg/gitlab"
-	gui2 "github.com/kozaktomas/dashboard/pkg/gui"
+	"github.com/kozaktomas/dashboard/pkg/gui"
+	"github.com/kozaktomas/dashboard/pkg/integrations"
+	"github.com/kozaktomas/dashboard/pkg/integrations/gitlab"
 	"os"
-	"strconv"
-	"strings"
 )
 
 func main() {
 	_ = godotenv.Load(".env")
 	config, _ := loadConfig()
 
-	gitlabUserId, err := strconv.Atoi(config["GITLAB_USER_ID"])
-	if err != nil {
-		panic("Gitlab user ID need to be integer")
+	ins := []integrations.Integration{
+		gitlab.New(config),
 	}
-	gl, _ := gitlab.New(
-		config["GITLAB_TOKEN"],
-		gitlabUserId,
-		strings.Split(config["GITLAB_PROJECTS"], ","),
-	)
 
-	gui := gui2.New(gl)
-	gui.Run()
+	g := gui.New(ins)
+	g.Run()
 
 }
 
