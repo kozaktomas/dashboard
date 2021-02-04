@@ -46,16 +46,13 @@ func (g *gui) Run() {
 	}
 	defer ui.Close()
 
-	x, y := ui.TerminalDimensions()
-	g.width = x
-	g.height = y
+	g.loadDimensions()
 
-	g.detail.SetRect(g.width/2+2, 0, g.width-2, g.height-1)
-	g.list.SetRect(0, 0, g.width/2, g.height-1)
-	g.flash.SetRect(0, g.height-1, g.width-1, g.height)
 	g.flash.Border = false
 
 	g.renderList()
+	g.renderDetail()
+	g.renderFlash("")
 
 	g.controlLoop()
 }
@@ -70,14 +67,11 @@ func (g *gui) renderList() {
 	}
 
 	g.list.Title = app.GetName()
-
 	g.list.Rows = rows
 	g.list.TextStyle = ui.NewStyle(ui.ColorGreen)
 	g.list.WrapText = false
 
 	ui.Render(g.list)
-	g.renderDetail()
-	g.renderFlash("")
 }
 
 func (g *gui) renderDetail() {
@@ -130,7 +124,14 @@ func (g *gui) controlLoop() {
 			selected := g.list.SelectedRow
 			cp := g.apps[g.activeAppIndex].GetItems()[selected].Copy
 			utils.CopyToClipboard(cp)
-			g.renderFlash("📋 Copied! [ " + cp + " ]")
+			g.renderFlash("📋 Copied! `" + cp + "`")
+		}
+
+		if e.ID == "<Resize>" {
+			g.loadDimensions()
+			g.renderFlash("Window resized! Thinking...")
+			g.renderList()
+			g.renderDetail()
 		}
 
 		g.renderList()
@@ -140,6 +141,7 @@ func (g *gui) controlLoop() {
 func (g *gui) renderFlash(msg string) {
 	if msg == "" {
 		g.flash.Text = helpDefault
+		ui.Render(g.flash)
 	} else {
 		g.flash.Text = msg
 		ui.Render(g.flash)
@@ -149,12 +151,22 @@ func (g *gui) renderFlash(msg string) {
 			ui.Render(g.flash)
 		}()
 	}
-
-	ui.Render(g.flash)
 }
 
 func (g *gui) processError(err error) {
 	if err != nil {
 		g.renderFlash(err.Error())
 	}
+}
+
+func (g *gui) loadDimensions() {
+	x, y := ui.TerminalDimensions()
+	g.width = x
+	g.height = y
+
+	ui.Clear()
+
+	g.detail.SetRect(g.width/2+2, 0, g.width-2, g.height-1)
+	g.list.SetRect(0, 0, g.width/2, g.height-1)
+	g.flash.SetRect(0, g.height-1, g.width-1, g.height)
 }
