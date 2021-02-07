@@ -4,6 +4,7 @@ import (
 	"github.com/atotto/clipboard"
 	"os/exec"
 	"runtime"
+	"strings"
 )
 
 func OpenBrowser(url string) bool {
@@ -24,4 +25,16 @@ func OpenBrowser(url string) bool {
 func CopyToClipboard(value string) bool {
 	err := clipboard.WriteAll(value)
 	return err != nil
+}
+
+func RemoveWhiteSpaces(value string) string {
+	q := strings.Map(func(r rune) rune {
+		if r == 32 { // space char
+			return -1
+		}
+
+		return r
+	}, value)
+
+	return q
 }

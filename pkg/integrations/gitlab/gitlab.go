@@ -106,16 +106,11 @@ func (gl *Service) GetDetail(i integrations.Item) integrations.ItemDetail {
 }
 
 func formatGitlabMergeRequestTitle(project *gitlab.Project, mr *gitlab.MergeRequest) string {
-	icon := "🔵"
-	if mr.State == "opened" {
-		icon = "\U0001F7E2"
-	}
+	projectName := utils.RemoveWhiteSpaces(project.Namespace.Path + "/" + project.Name)
+	projectName = strings.ToLower(projectName)
 
-	if mr.State == "Closed" {
-		icon = "🔴"
-	}
-	ret := icon + " "
-	ret += "[" + project.NameWithNamespace + "!" + strconv.Itoa(mr.IID) + "](fg:cyan)"
+	ret := " "
+	ret += "[" + projectName + "!" + strconv.Itoa(mr.IID) + "](fg:cyan)"
 	ret += " - " + mr.Title
 
 	return ret
