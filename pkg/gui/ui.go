@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"fmt"
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
 	"github.com/kozaktomas/dashboard/pkg/integrations"
@@ -18,6 +19,7 @@ type gui struct {
 	apps   []integrations.Integration
 
 	list   *widgets.List
+	menu   *widgets.TabPane
 	detail *widgets.Paragraph
 	flash  *widgets.Paragraph
 
@@ -26,12 +28,18 @@ type gui struct {
 }
 
 func New(integrations []integrations.Integration) *gui {
+	menuItems := make([]string, len(integrations))
+	for index, integration := range integrations {
+		menuItems[index] = fmt.Sprintf("%s[%d]", integration.GetName(), index + 1)
+	}
+
 	return &gui{
 		width:  0,
 		height: 0,
 		apps:   integrations,
 
 		list:   widgets.NewList(),
+		menu:   widgets.NewTabPane(menuItems...),
 		detail: widgets.NewParagraph(),
 		flash:  widgets.NewParagraph(),
 
@@ -51,6 +59,7 @@ func (g *gui) Run() {
 	g.flash.Border = false
 
 	g.renderList()
+	g.renderMenu()
 	g.renderDetail()
 	g.renderFlash("")
 
@@ -66,12 +75,19 @@ func (g *gui) renderList() {
 		rows = append(rows, item.Text)
 	}
 
-	g.list.Title = app.GetName()
 	g.list.Rows = rows
 	g.list.TextStyle = ui.NewStyle(ui.ColorGreen)
 	g.list.WrapText = false
 
 	ui.Render(g.list)
+	g.renderMenu()
+}
+
+func (g *gui) renderMenu() {
+	g.menu.Border = false
+	g.menu.ActiveTabStyle.Fg = ui.ColorWhite
+	g.menu.InactiveTabStyle.Fg = ui.ColorCyan
+	ui.Render(g.menu)
 }
 
 func (g *gui) renderDetail() {
@@ -166,7 +182,8 @@ func (g *gui) loadDimensions() {
 
 	ui.Clear()
 
-	g.detail.SetRect(g.width/2+2, 0, g.width-2, g.height-1)
 	g.list.SetRect(0, 0, g.width/2, g.height-1)
+	g.menu.SetRect(1, g.height - 4, g.width/2 - 1, g.height - 2)
 	g.flash.SetRect(0, g.height-1, g.width-1, g.height)
+	g.detail.SetRect(g.width/2+2, 0, g.width-2, g.height-1)
 }
