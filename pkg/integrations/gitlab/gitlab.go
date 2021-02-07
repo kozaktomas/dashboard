@@ -40,12 +40,27 @@ func (gl *Service) GetItems() []integrations.Item {
 	for _, projectId := range gl.projects {
 		project, _, _ := gl.client.Projects.GetProject(projectId, &gitlab.GetProjectOptions{})
 		authorId := gl.userId
-		mrs, _, _ := gl.client.MergeRequests.ListProjectMergeRequests(projectId, &gitlab.ListProjectMergeRequestsOptions{
+		state := "opened"
+
+		// author
+		mrsAuthor, _, _ := gl.client.MergeRequests.ListProjectMergeRequests(projectId, &gitlab.ListProjectMergeRequestsOptions{
 			AuthorID: &authorId,
+			State: &state,
 			ListOptions: gitlab.ListOptions{
 				PerPage: 1000,
 			},
 		})
+
+		// reviewer
+		mrsReviewer, _, _ := gl.client.MergeRequests.ListProjectMergeRequests(projectId, &gitlab.ListProjectMergeRequestsOptions{
+			ReviewerID: &authorId,
+			State: &state,
+			ListOptions: gitlab.ListOptions{
+				PerPage: 1000,
+			},
+		})
+
+		mrs := append(mrsAuthor, mrsReviewer...)
 
 		for _, mr := range mrs {
 			items = append(items, integrations.Item{
