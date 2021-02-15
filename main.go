@@ -2,42 +2,40 @@ package main
 
 import (
 	"fmt"
-	"github.com/joho/godotenv"
+	"github.com/kozaktomas/dashboard/pkg/cmd"
+	"github.com/kozaktomas/dashboard/pkg/config"
 	"github.com/kozaktomas/dashboard/pkg/gui"
 	"github.com/kozaktomas/dashboard/pkg/integrations"
 	"github.com/kozaktomas/dashboard/pkg/integrations/gitlab"
+	"gopkg.in/alecthomas/kingpin.v2"
 	"os"
+	"os/user"
 )
 
+var app = kingpin.New("ddboard", "Developer dashboard.")
+var c *config.Config // global configuration
+
 func main() {
-	_ = godotenv.Load(".env")
-	config, _ := loadConfig()
-
-	ins := []integrations.Integration{
-		gitlab.New(config),
+	usr, err := user.Current()
+	if err != nil {
+		fmt.Printf("could not get current user: %w", err)
+		return
 	}
 
-	g := gui.New(ins)
-	g.Run()
-
-}
-
-
-func loadConfig() (map[string]string, error) {
-	keys := []string{
-		"GITLAB_USER_ID",
-		"GITLAB_TOKEN",
-		"GITLAB_PROJECTS",
-	}
-
-	config := make(map[string]string)
-	for _, key := range keys {
-		v := os.Getenv(key)
-		if v == "" {
-			return nil, fmt.Errorf("could not find environment variable %s", key)
+	c = config.New(usr.HomeDir)
+	if len(os.Args) == 1 && c.IsReady() {
+		// run UI app
+		ins := []integrations.Integration{
+			gitlab.New(c.Data.Gitlab.Token, c.Data.Gitlab.UserId, c.Data.Gitlab.Projects),
 		}
-		config[key] = v
-	}
 
-	return config, nil
+		g := gui.New(ins)
+		g.Run()
+	} else {
+		// run kingpin app
+		commands := cmd.New(c)
+		app.Command("init", "Init configuration").Action(commands.Init)
+		command, err := app.Parse(os.Args[1:])
+		kingpin.MustParse(command, err)
+	}
 }

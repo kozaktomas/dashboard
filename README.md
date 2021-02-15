@@ -16,7 +16,6 @@ Still under development!
 ## Todo
 - better MR filter
 - integration with Asana
-- config page - set credentials
 - integration with Github
 - git lab/hub issues
 - improve help

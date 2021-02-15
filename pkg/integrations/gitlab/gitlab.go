@@ -15,14 +15,13 @@ type Service struct {
 	itemsCache []integrations.Item
 }
 
-func New(config map[string]string) integrations.Integration {
-	client, _ := gitlab.NewClient(config["GITLAB_TOKEN"])
-	gitlabUserId, _ := strconv.Atoi(config["GITLAB_USER_ID"])
+func New(token string, userId int, projects []string) integrations.Integration {
+	client, _ := gitlab.NewClient(token)
 
 	return &Service{
 		client:   client,
-		userId:   gitlabUserId,
-		projects: strings.Split(config["GITLAB_PROJECTS"], ","),
+		userId:   userId,
+		projects: projects,
 	}
 }
 
