@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type Service struct {
@@ -84,7 +85,22 @@ func (gl *Service) GetDetail(i integrations.Item) integrations.ItemDetail {
 	iid, _ := strconv.Atoi(splitId[0])
 	projectId, _ := strconv.Atoi(splitId[1])
 
-	mr, _, _ := gl.client.MergeRequests.GetMergeRequest(projectId, iid, &gitlab.GetMergeRequestsOptions{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	var mr *gitlab.MergeRequest
+	go func() {
+		defer wg.Done()
+		mr, _, _ = gl.client.MergeRequests.GetMergeRequest(projectId, iid, &gitlab.GetMergeRequestsOptions{})
+	}()
+
+	var mrApprovals *gitlab.MergeRequestApprovals
+	go func() {
+		defer wg.Done()
+		mrApprovals, _, _ = gl.client.MergeRequests.GetMergeRequestApprovals(projectId, iid)
+	}()
+
+	wg.Wait()
 
 	assignees := make([]string, len(mr.Assignees))
 	for i, ass := range mr.Assignees {
@@ -101,6 +117,11 @@ func (gl *Service) GetDetail(i integrations.Item) integrations.ItemDetail {
 		conflict = "Yes"
 	}
 
+	approvedBy := make([]string, len(mrApprovals.ApprovedBy))
+	for i, app := range mrApprovals.ApprovedBy {
+		approvedBy[i] = app.User.Name
+	}
+
 	return integrations.ItemDetail{
 		Title: "Who knows?",
 		Parts: []integrations.Renderable{
@@ -112,11 +133,11 @@ func (gl *Service) GetDetail(i integrations.Item) integrations.ItemDetail {
 			utils.Break{},
 			utils.Paragraph{Text: "[Assignees](fg:cyan): " + strings.Join(assignees, ", ")},
 			utils.Break{},
+			utils.Paragraph{Text: "[Approvals](fg:cyan): " + strings.Join(approvedBy, ", ")},
+			utils.Break{},
 			utils.Paragraph{Text: "[Reviewers](fg:cyan): " + strings.Join(reviewers, ", ")},
 			utils.Break{},
 			utils.Paragraph{Text: "[Status](fg:cyan): " + mr.State},
-			utils.Break{},
-			utils.Paragraph{Text: "[Approvals](fg:cyan): " + strconv.Itoa(mr.ApprovalsBeforeMerge)},
 			utils.Break{},
 			utils.Paragraph{Text: "[Branch](fg:cyan): " + mr.SourceBranch},
 			utils.Break{},
