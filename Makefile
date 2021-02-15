@@ -1,6 +1,10 @@
+.PHONY: build install run
+
 build:
-	mkdir build
-	go build -o build/dashboard
+	go build -o build/ddboard
+
+install:
+	cp build/ddboard /usr/local/bin/ddboard
 
 run:
 	touch .env

@@ -8,6 +8,12 @@ Console board for developers.
 ## Notes
 Still under development!
 
+## Install
+```bash
+make
+sudo make install
+```
+
 ## Done
 - basic client for Gitlab
 - copy branch
