@@ -4,6 +4,7 @@ import (
 	"github.com/kozaktomas/dashboard/pkg/integrations"
 	"github.com/kozaktomas/dashboard/pkg/utils"
 	"github.com/xanzy/go-gitlab"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -44,7 +45,7 @@ func (gl *Service) GetItems() []integrations.Item {
 		// author
 		mrsAuthor, _, _ := gl.client.MergeRequests.ListProjectMergeRequests(projectId, &gitlab.ListProjectMergeRequestsOptions{
 			AuthorID: &authorId,
-			State: &state,
+			State:    &state,
 			ListOptions: gitlab.ListOptions{
 				PerPage: 1000,
 			},
@@ -53,18 +54,21 @@ func (gl *Service) GetItems() []integrations.Item {
 		// reviewer
 		mrsReviewer, _, _ := gl.client.MergeRequests.ListProjectMergeRequests(projectId, &gitlab.ListProjectMergeRequestsOptions{
 			ReviewerID: &authorId,
-			State: &state,
+			State:      &state,
 			ListOptions: gitlab.ListOptions{
 				PerPage: 1000,
 			},
 		})
 
 		mrs := append(mrsAuthor, mrsReviewer...)
+		sort.Slice(mrs[:], func(i, j int) bool {
+			return mrs[i].IID > mrs[j].IID
+		})
 
 		for _, mr := range mrs {
 			items = append(items, integrations.Item{
 				Id:   strconv.Itoa(mr.IID) + "|" + projectId,
-				Text: formatGitlabMergeRequestTitle(project, mr),
+				Text: gl.formatGitlabMergeRequestTitle(project, mr),
 				Url:  mr.WebURL,
 				Copy: mr.SourceBranch,
 			})
@@ -87,6 +91,11 @@ func (gl *Service) GetDetail(i integrations.Item) integrations.ItemDetail {
 		assignees[i] = ass.Name
 	}
 
+	reviewers := make([]string, len(mr.Reviewers))
+	for i, rew := range mr.Reviewers {
+		reviewers[i] = rew.Name
+	}
+
 	conflict := "No"
 	if mr.HasConflicts {
 		conflict = "Yes"
@@ -103,6 +112,8 @@ func (gl *Service) GetDetail(i integrations.Item) integrations.ItemDetail {
 			utils.Break{},
 			utils.Paragraph{Text: "[Assignees](fg:cyan): " + strings.Join(assignees, ", ")},
 			utils.Break{},
+			utils.Paragraph{Text: "[Reviewers](fg:cyan): " + strings.Join(reviewers, ", ")},
+			utils.Break{},
 			utils.Paragraph{Text: "[Status](fg:cyan): " + mr.State},
 			utils.Break{},
 			utils.Paragraph{Text: "[Approvals](fg:cyan): " + strconv.Itoa(mr.ApprovalsBeforeMerge)},
@@ -115,15 +126,36 @@ func (gl *Service) GetDetail(i integrations.Item) integrations.ItemDetail {
 			utils.Break{},
 			utils.Paragraph{Text: "[Files changed](fg:cyan): " + mr.ChangesCount},
 			utils.Break{},
+			utils.Paragraph{Text: "[Created](fg:cyan): " + mr.CreatedAt.String()},
+			utils.Break{},
 		},
 	}
 }
 
-func formatGitlabMergeRequestTitle(project *gitlab.Project, mr *gitlab.MergeRequest) string {
+func (gl *Service) formatGitlabMergeRequestTitle(project *gitlab.Project, mr *gitlab.MergeRequest) string {
 	projectName := utils.RemoveWhiteSpaces(project.Namespace.Path + "/" + project.Name)
 	projectName = strings.ToLower(projectName)
 
-	ret := " "
+	badge := ""
+	if mr.Author.ID == gl.userId {
+		badge += "A"
+	}
+
+	if badge != "A" {
+		for _, assignee := range mr.Assignees {
+			if assignee.ID == gl.userId {
+				badge += "A"
+			}
+		}
+	}
+
+	for _, reviewer := range mr.Reviewers {
+		if reviewer.ID == gl.userId {
+			badge += "[R](fg:red)"
+		}
+	}
+
+	ret := " " + badge + " "
 	ret += "[" + projectName + "!" + strconv.Itoa(mr.IID) + "](fg:cyan)"
 	ret += " - " + mr.Title
 
