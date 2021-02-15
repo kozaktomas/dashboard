@@ -11,7 +11,7 @@ import (
 )
 
 const helpTimeout = 5 * time.Second
-const helpDefault = "💡 [o / Enter] - open in browser   [Tab / 1 / 2] - switch tab]   [b] - copy branch name"
+const helpDefault = "💡 [o / Enter] - open in browser  [b] - copy branch name"
 
 type gui struct {
 	width  int
