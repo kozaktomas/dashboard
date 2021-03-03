@@ -40,12 +40,21 @@ func (gl *Service) GetItems() []integrations.Item {
 
 	for _, projectId := range gl.projects {
 		project, _, _ := gl.client.Projects.GetProject(projectId, &gitlab.GetProjectOptions{})
-		authorId := gl.userId
+		userId := gl.userId
 		state := "opened"
 
 		// author
 		mrsAuthor, _, _ := gl.client.MergeRequests.ListProjectMergeRequests(projectId, &gitlab.ListProjectMergeRequestsOptions{
-			AuthorID: &authorId,
+			AuthorID: &userId,
+			State:    &state,
+			ListOptions: gitlab.ListOptions{
+				PerPage: 1000,
+			},
+		})
+
+		// author
+		mrsAssignee, _, _ := gl.client.MergeRequests.ListProjectMergeRequests(projectId, &gitlab.ListProjectMergeRequestsOptions{
+			AssigneeID: &userId,
 			State:    &state,
 			ListOptions: gitlab.ListOptions{
 				PerPage: 1000,
@@ -54,14 +63,29 @@ func (gl *Service) GetItems() []integrations.Item {
 
 		// reviewer
 		mrsReviewer, _, _ := gl.client.MergeRequests.ListProjectMergeRequests(projectId, &gitlab.ListProjectMergeRequestsOptions{
-			ReviewerID: &authorId,
+			ReviewerID: &userId,
 			State:      &state,
 			ListOptions: gitlab.ListOptions{
 				PerPage: 1000,
 			},
 		})
 
-		mrs := append(mrsAuthor, mrsReviewer...)
+		allMrs := append(append(mrsAuthor, mrsReviewer...), mrsAssignee...)
+
+		var mrs []*gitlab.MergeRequest
+		for _, mr := range allMrs {
+			found := false
+			for _, m := range mrs {
+				if m.IID == mr.IID {
+					found = true
+				}
+			}
+
+			if !found {
+				mrs = append(mrs, mr)
+			}
+		}
+
 		sort.Slice(mrs[:], func(i, j int) bool {
 			return mrs[i].IID > mrs[j].IID
 		})
