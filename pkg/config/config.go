@@ -11,6 +11,7 @@ const configDirName = ".ddboard"
 const configFileName = "config.json"
 
 type Gitlab struct {
+	Url      string   `json:"url"`
 	Token    string   `json:"token"`
 	UserId   int      `json:"user_id"`
 	Projects []string `json:"projects"`

@@ -17,8 +17,8 @@ type Service struct {
 	itemsCache []integrations.Item
 }
 
-func New(token string, userId int, projects []string) integrations.Integration {
-	client, _ := gitlab.NewClient(token)
+func New(url, token string, userId int, projects []string) integrations.Integration {
+	client, _ := gitlab.NewClient(token, gitlab.WithBaseURL(url))
 
 	return &Service{
 		client:   client,

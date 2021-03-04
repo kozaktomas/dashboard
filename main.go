@@ -26,7 +26,7 @@ func main() {
 	if len(os.Args) == 1 && c.IsReady() {
 		// run UI app
 		ins := []integrations.Integration{
-			gitlab.New(c.Data.Gitlab.Token, c.Data.Gitlab.UserId, c.Data.Gitlab.Projects),
+			gitlab.New(c.Data.Gitlab.Url, c.Data.Gitlab.Token, c.Data.Gitlab.UserId, c.Data.Gitlab.Projects),
 		}
 
 		g := gui.New(ins)
